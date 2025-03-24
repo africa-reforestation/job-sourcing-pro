@@ -13,13 +13,7 @@ def render_dashboard(db_handler) -> None:
     Args:
         db_handler: Database handler instance.
     """
-    # Set page configuration
-    st.set_page_config(
-        page_title="Upwork Job Sourcing & Filtering",
-        page_icon="🔍",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    # Page configuration is now set in app.py
     
     # Display header
     st.title("🔍 Upwork Job Sourcing & Filtering")

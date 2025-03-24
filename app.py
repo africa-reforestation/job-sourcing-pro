@@ -9,6 +9,14 @@ from src.ui.dashboard import render_dashboard
 from src.scraper.upwork_scraper import UpworkScraper
 from src.scheduler.job_scheduler import create_job_scraping_task
 
+# Set page configuration - MUST be the first Streamlit command
+st.set_page_config(
+    page_title="Upwork Job Sourcing & Filtering",
+    page_icon="🔍",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
