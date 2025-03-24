@@ -1,9 +1,11 @@
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Float, Boolean, Text, DateTime, Enum as SQLAlchemyEnum
+from sqlalchemy import Column, Integer, String, Float, Boolean, Text, DateTime, Enum as SQLAlchemyEnum, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
 
-Base = declarative_base()
+# Create metadata with explicit schema
+metadata = MetaData(schema='public')
+Base = declarative_base(metadata=metadata)
 
 class JobType(str, Enum):
     FIXED = "Fixed"
@@ -22,6 +24,7 @@ class JobPriority(str, Enum):
 
 class JobPost(Base):
     __tablename__ = 'jobpost'
+    __table_args__ = {'schema': 'public'}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     upwork_id = Column(String, nullable=False, unique=True)
@@ -72,6 +75,7 @@ class JobPost(Base):
 
 class FilterKeyword(Base):
     __tablename__ = 'filter_keyword'
+    __table_args__ = {'schema': 'public'}
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     keyword = Column(String, nullable=False, unique=True)

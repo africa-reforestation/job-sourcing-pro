@@ -53,7 +53,11 @@ class UpworkScraper:
         search_query = " OR ".join(keywords)
         
         return {
-            "model": "llama3-70b-8192",
+            "llm": {
+                "provider": "groq",
+                "api_key": self.api_key,
+                "model": "llama3-70b-8192"
+            },
             "system_message": """
             You are a web scraping assistant focused on extracting job listings from Upwork.
             Your task is to:
@@ -77,9 +81,6 @@ class UpworkScraper:
         try:
             logging.info(f"Starting job scraping with keywords: {keywords}")
             
-            # For now, we'll implement a fallback approach that prevents errors
-            # from breaking the application flow while we debug the Groq integration
-            
             # Check if the environment is properly set up for scraping
             if not self.api_key or not self.api_key.strip():
                 logging.error("No valid API key found for Groq")
@@ -88,8 +89,6 @@ class UpworkScraper:
             # Get the scraper configuration
             config = self.get_scrape_config(keywords)
             
-            # Currently, we're having an issue with the ScrapegraphAI integration
-            # We'll log more detailed information for debugging
             logging.info("Attempting to initialize scraper with available configuration")
             
             try:
@@ -100,9 +99,7 @@ class UpworkScraper:
                 """
                 source = "https://www.upwork.com/nx/search/jobs"
                 
-                # More verbose logging about what we're trying to do
-                logging.info(f"Creating SmartScraperGraph with prompt, source, and config")
-                logging.info(f"Using model: {config.get('model', 'Unknown')}")
+                logging.info("Creating SmartScraperGraph with prompt, source, and config")
                 
                 # Create the graph with proper parameters
                 graph = SmartScraperGraph(
@@ -111,18 +108,6 @@ class UpworkScraper:
                     config=config
                 )
                 
-                # Configure graph with LLM settings
-                logging.info("Configuring graph with LLM settings")
-                graph_config = {
-                    "llm": {
-                        "provider": "groq",
-                        "model": "llama3-70b-8192",
-                        "api_key": self.api_key
-                    }
-                }
-                graph.configure(graph_config)
-                
-                # Debug info
                 logging.info("Graph configured successfully")
                 
                 # Execute the scraper graph
@@ -150,24 +135,18 @@ class UpworkScraper:
                 
                 if "'llm'" in error_info:
                     logging.error("This appears to be an issue with the LLM configuration")
-                    logging.error("Turning on temporary debugging functionality")
-                    
-                    # This is a known issue, we need to handle it gracefully
-                    # For now, we'll return an empty list rather than breaking the application
+                    logging.error("Please check your Groq API key and model configuration")
                     return []
                 else:
-                    # Some other attribute error we didn't anticipate
                     logging.error(f"Unexpected attribute error: {error_info}")
                     return []
                     
             except Exception as e:
                 logging.error(f"Unexpected error in scraper graph: {str(e)}")
-                # Log the type of exception for better debugging
                 logging.error(f"Exception type: {type(e).__name__}")
                 return []
                 
         except Exception as e:
-            # Outermost exception handler to ensure application doesn't crash
             logging.error(f"Critical error in job scraping: {str(e)}")
             logging.error(f"Exception type: {type(e).__name__}")
             return []

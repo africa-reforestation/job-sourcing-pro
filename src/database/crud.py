@@ -1,18 +1,24 @@
 import logging
 import os
 from typing import List, Dict, Any, Optional, Union
-from sqlalchemy import create_engine, func, desc, asc
+from sqlalchemy import create_engine, func, desc, asc, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 from .models import Base, JobPost, FilterKeyword, JobStatus, JobPriority, JobType
+from dotenv import load_dotenv
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+logger = logging.getLogger(__name__)
+
 class DatabaseHandler:
     def __init__(self):
+        # Load environment variables
+        load_dotenv()
+        
         # Get database connection details from environment variables
         db_user = os.getenv('PGUSER')
         db_password = os.getenv('PGPASSWORD')
@@ -20,18 +26,42 @@ class DatabaseHandler:
         db_port = os.getenv('PGPORT', '5432')
         db_name = os.getenv('PGDATABASE')
         
-        # Construct database URL
+        # Log connection details (without password)
+        logger.info(f"Database connection details:")
+        logger.info(f"User: {db_user}")
+        logger.info(f"Host: {db_host}")
+        logger.info(f"Port: {db_port}")
+        logger.info(f"Database: {db_name}")
+        
+        # Construct database URL with schema
         db_url = os.getenv('DATABASE_URL')
         if not db_url and all([db_user, db_password, db_host, db_port, db_name]):
-            db_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+            db_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?options=-csearch_path%3Dpublic"
+            logger.info("Constructed database URL from individual parameters")
         
         if not db_url:
-            raise ValueError("Database connection information missing. Please provide DATABASE_URL or individual connection parameters.")
+            error_msg = "Database connection information missing. Please provide DATABASE_URL or individual connection parameters."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
-        self.engine = create_engine(db_url)
-        self.Session = sessionmaker(bind=self.engine)
-        Base.metadata.create_all(self.engine)
-        logging.info("Database connection established")
+        try:
+            logger.info("Attempting to create database engine...")
+            self.engine = create_engine(db_url)
+            self.Session = sessionmaker(bind=self.engine)
+            
+            # Test the connection with a simple query
+            with self.engine.connect() as conn:
+                conn.execute(text("SELECT 1")).scalar()
+                logger.info("Database connection test successful")
+            
+            # Create tables if they don't exist
+            Base.metadata.create_all(self.engine)
+            logger.info("Database tables created/verified")
+            
+        except SQLAlchemyError as e:
+            error_msg = f"Failed to initialize database connection: {str(e)}"
+            logger.error(error_msg)
+            raise SQLAlchemyError(error_msg)
 
     def get_session(self):
         return self.Session()

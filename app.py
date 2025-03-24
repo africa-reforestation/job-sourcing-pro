@@ -4,10 +4,29 @@ Main application file for Upwork Job Sourcing & Filtering Web App.
 import os
 import streamlit as st
 import logging
+from dotenv import load_dotenv
 from src.database.crud import DatabaseHandler
 from src.ui.dashboard import render_dashboard
 from src.scraper.upwork_scraper import UpworkScraper
 from src.scheduler.job_scheduler import create_job_scraping_task
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
+load_dotenv()
+
+# Debug: Print environment variables
+logger.info("Environment variables:")
+logger.info(f"DATABASE_URL: {os.getenv('DATABASE_URL')}")
+logger.info(f"PGUSER: {os.getenv('PGUSER')}")
+logger.info(f"PGHOST: {os.getenv('PGHOST')}")
+logger.info(f"PGPORT: {os.getenv('PGPORT')}")
+logger.info(f"PGDATABASE: {os.getenv('PGDATABASE')}")
 
 # Set page configuration - MUST be the first Streamlit command
 st.set_page_config(
@@ -15,12 +34,6 @@ st.set_page_config(
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
-)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
 # Global variable to hold the scheduler task instance
