@@ -13,11 +13,34 @@ A professional job sourcing application that automates the process of scraping, 
 
 ## Prerequisites
 
+- Docker and Docker Compose (for containerized deployment)
+- OR
 - Python 3.8+
 - PostgreSQL 12+
 - Virtual environment (recommended)
 
-## Installation
+## Quick Start with Docker
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/job-sourcing-pro.git
+cd job-sourcing-pro
+```
+
+2. Create a .env file:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+3. Build and start the containers:
+```bash
+docker-compose up -d --build
+```
+
+4. Access the application at `http://localhost:8501`
+
+## Manual Installation
 
 1. Clone the repository:
 ```bash
@@ -51,18 +74,44 @@ python init_db.py
 
 Create a `.env` file with the following variables:
 ```
-DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+DATABASE_URL=postgresql://jobsourcingpro:your_password@localhost:5432/jobsourcingpro
 GROQ_API_KEY=your_groq_api_key
+DB_PASSWORD=your_database_password
 ```
 
-## Usage
+## Docker Deployment
 
-1. Start the Streamlit application:
+The application is containerized using Docker and can be deployed using Docker Compose. The setup includes:
+
+- Application container running Streamlit
+- PostgreSQL database container
+- Automatic database initialization
+- Health checks for both services
+- Volume persistence for database and logs
+- Secure non-root user execution
+- Multi-stage builds for smaller image size
+
+### Docker Commands
+
+Start the application:
 ```bash
-streamlit run app.py
+docker-compose up -d
 ```
 
-2. Access the web interface at `http://localhost:8501`
+View logs:
+```bash
+docker-compose logs -f
+```
+
+Stop the application:
+```bash
+docker-compose down
+```
+
+Remove volumes (caution - this will delete all data):
+```bash
+docker-compose down -v
+```
 
 ## Project Structure
 
@@ -74,7 +123,11 @@ job-sourcing-pro/
 ├── scraper/              # Job scraping modules
 ├── models/               # Database models
 ├── utils/                # Utility functions
-└── requirements.txt      # Project dependencies
+├── docker-compose.yml    # Docker Compose configuration
+├── Dockerfile            # Docker build instructions
+├── init-scripts/         # Database initialization scripts
+├── requirements.txt      # Project dependencies
+└── .env.example         # Example environment variables
 ```
 
 ## Contributing
