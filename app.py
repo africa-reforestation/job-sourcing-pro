@@ -63,10 +63,19 @@ def main():
     try:
         # Start the job scraper scheduler
         scraper_status = initialize_job_scraper()
-        if scraper_status["status"] == "error":
-            st.sidebar.error(f"Job scraper initialization failed: {scraper_status['message']}")
+        if scraper_status.get("status") == "error":
+            st.sidebar.error(f"Job scraper initialization failed: {scraper_status.get('message', 'Unknown error')}")
         else:
-            st.sidebar.success(f"Job scraper active. Next run: {scraper_status['task']['next_run']}")
+            # Using more explicit approach to avoid typing issues
+            task_info = {}
+            if "task" in scraper_status and isinstance(scraper_status["task"], dict):
+                task_info = scraper_status["task"]
+            
+            next_run = "Unknown"
+            if "next_run" in task_info:
+                next_run = task_info["next_run"]
+                
+            st.sidebar.success(f"Job scraper active. Next run: {next_run}")
         
         # Initialize database handler
         db_handler = DatabaseHandler()

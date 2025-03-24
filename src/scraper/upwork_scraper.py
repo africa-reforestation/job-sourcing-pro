@@ -80,16 +80,27 @@ class UpworkScraper:
             # Get the scraper configuration
             config = self.get_scrape_config(keywords)
             
-            # Initialize the SmartScraperGraph
-            # The SmartScraperGraph initialization doesn't use api_key parameter directly
-            graph = SmartScraperGraph()
+            # Initialize the SmartScraperGraph with required parameters
+            # Based on the error, SmartScraperGraph requires prompt, source, and config parameters
+            prompt = """
+            Please scrape job listings from Upwork based on the given search query.
+            For each job, extract the title, description, job type, experience level, duration, rate, and client information.
+            """
+            source = "https://www.upwork.com/nx/search/jobs"
+            
+            graph = SmartScraperGraph(
+                prompt=prompt,
+                source=source,
+                config=config
+            )
             
             # Set the API key
-            graph.client.api_key = self.api_key
+            graph.api_key = self.api_key
             
             # Execute the scraper graph
             logging.info("Executing scraper graph...")
-            result = graph.run(config=config, output_schema=Jobs)
+            # Updated to match the correct API for SmartScraperGraph
+            result = graph.run(output_schema=Jobs)
             
             # Process the scraped jobs
             scraped_jobs = []
