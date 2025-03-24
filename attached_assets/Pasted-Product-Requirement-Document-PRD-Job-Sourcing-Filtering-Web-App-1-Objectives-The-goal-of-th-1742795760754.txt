@@ -1,0 +1,529 @@
+Product Requirement Document (PRD)
+
+ Job Sourcing & Filtering Web App
+
+ 1. Objectives
+The goal of this web application is to automate the process of sourcing and filtering job postings from Upwork based on pre-configured keyword-based filtering (e.g., "AirTable," "Zapier," "Calendly"). The application will prioritize jobs that align with simplicity and speed, focusing on projects that can be implemented as simple CRUD (Create, Read, Update, Delete) applications. Additionally, the system will validate budget and client history to ensure high-value opportunities are prioritized.
+
+ 2. Scope
+- Automate job fetching from Upwork based on keyword filters.
+- Store fetched jobs in a PostgreSQL database.
+- Prioritize jobs that can be implemented as CRUD applications for quick execution.
+- Validate client budget and spending history to filter out low-value opportunities.
+- Provide a user-friendly dashboard to manage job listings.
+- Allow users to update filtering criteria dynamically.
+
+ 3. User Stories
+	As a freelancer, I want to:
+- Receive a curated list of job postings based on pre-defined keywords.
+- Prioritize jobs based preconfigured criteria such eg "crud operation", "ai jobs", "automation".
+- See client budget and past spending history before considering a project.
+- Filter out low-budget jobs where the client has a poor spending track record.
+- Get notifications when new relevant jobs are added.
+
+ 4. Functional Requirements
+	Job Fetching & Filtering
+- The system shall fetch jobs from Upwork at regular intervals based on pre-configured keyword filters using scrapegraph.ai(see sample inspired code).
+- The system shall prioritize jobs that fit the CRUD development model for simplicity and speed.
+- The system shall validate job listings by checking the client's spending history and budget.
+- The system shall store job listings in a PostgreSQL database.
+
+	User Dashboard & Management
+- The system shall provide a dashboard where users can view and manage job listings.
+- Users shall be able to update keyword filters dynamically.
+- Users shall be able to mark jobs as "Interested" or "Not Interested."
+- The system shall allow users to set up notifications for newly added relevant jobs.
+
+ 5. Non-Functional Requirements
+- The system shall ensure data is fetched and processed efficiently to avoid delays.
+- The application shall be optimized for speed and simplicity, minimizing complex workflows.
+- The system shall provide a clean and intuitive user interface.
+- The database shall be optimized for handling large volumes of job listings.
+
+ 6. Success Criteria
+- Jobs are fetched, stored, and displayed correctly based on keyword filters.
+- CRUD-based jobs are prioritized in the results.
+- The system accurately evaluates client budget and spending history.
+- Users can efficiently manage and update their job filters.
+- The application operates with minimal latency and high reliability.
+
+ 7. Constraints
+- The application is limited to Upwork’s job sourcing capabilities and API restrictions.
+- Job prioritization relies on the accuracy of Upwork’s client budget and spending data.
+- The system must handle potential rate limits from Upwork.
+
+This PRD ensures that the Job Sourcing & Filtering Web App not only automates job fetching but also prioritizes opportunities that are easy to execute while maximizing earning potential based on client spending behavior.
+
+
+Strictly Get inpired by the following code
+jobpostcrud.py
+from typing import Optional
+import streamlit as st
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Float, Boolean, Text, Enum as SQLAlchemyEnum
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import create_engine
+from enum import Enum
+from pydantic import BaseModel, ValidationError, validator
+
+Base = declarative_base()
+
+# Enum for job types
+class JobType(str, Enum):
+    FIXED = "Fixed"
+    HOURLY = "Hourly"
+
+# SQLAlchemy JobPost model
+class JobPost(Base):
+    __tablename__ = 'jobpost'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    job_type = Column(SQLAlchemyEnum(JobType), nullable=False)
+    experience_level = Column(String, nullable=False)
+    duration = Column(String, nullable=False)
+    rate = Column(String, nullable=True)
+    proposal_count = Column(Integer, default=0)
+    payment_verified = Column(Boolean, default=False)
+    country = Column(String, nullable=False)
+    ratings = Column(Float, nullable=True)
+    spent = Column(Float, nullable=True)
+    skills = Column(Text, nullable=True)
+    category = Column(String, nullable=False)
+
+# Pydantic model for validation
+class JobInformation(BaseModel):
+    id: str
+    title: str
+    date_time: str
+    description: str
+    job_type: str
+    experience_level: str
+    duration: str
+    rate: str
+    client_information: str
+
+    @validator("id", pre=True)
+    def validate_id(cls, value):
+        # Ensure ID is a string
+        return str(value)
+
+    @validator("job_type", pre=True)
+    def normalize_job_type(cls, value):
+        # Normalize job_type values
+        if isinstance(value, str):
+            value = value.lower().strip()
+            if "hourly" in value:
+                return "Hourly"
+            if "fixed" in value:
+                return "Fixed"
+        raise ValueError("Invalid job type format")
+
+class JobPostCRUD:
+    def __init__(self):
+        # Retrieve the connection URL from Streamlit secrets
+        connection_url = st.secrets["connections"]["neon"]["url"]
+
+        # Create the SQLAlchemy engine
+        self.engine = create_engine(connection_url)
+
+        # Configure sessionmaker
+        self.Session = sessionmaker(bind=self.engine)
+
+        # Create tables if they do not already exist
+        Base.metadata.create_all(self.engine)
+
+
+    def create_job(self, job_data: dict):
+        """Create a new job entry."""
+        session = None  # Initialize session to None
+        try:
+            validated_data = JobInformation(job_data)
+            new_job = JobPost(validated_data.dict())
+            session = self.Session()
+            session.add(new_job)
+            session.commit()
+            return {"status": "success", "job_id": new_job.id}
+        except ValidationError as e:
+            return {"status": "error", "message": e.errors()}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            if session:  # Only close session if it was initialized
+                session.close()
+
+
+    def read_job(self, job_id: int):
+        """Retrieve a job by ID."""
+        try:
+            query = f"SELECT * FROM jobpost WHERE id = {job_id};"
+            df = self.conn.query(query)
+            if df.empty:
+                return {"status": "error", "message": "Job not found"}
+            return {"status": "success", "job": df.to_dict(orient="records")[0]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def update_job(self, job_id: int, update_data: dict):
+        """Update an existing job."""
+        try:
+            set_clause = ", ".join(f"{key} = '{value}'" for key, value in update_data.items())
+            query = f"UPDATE jobpost SET {set_clause} WHERE id = {job_id};"
+            self.conn.query(query)
+            return {"status": "success", "message": "Job updated successfully"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def delete_job(self, job_id: int):
+        """Delete a job by ID."""
+        try:
+            query = f"DELETE FROM jobpost WHERE id = {job_id};"
+            self.conn.query(query)
+            return {"status": "success", "message": "Job deleted successfully"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        
+
+smartscraper.py
+
+from typing import List
+from enum import Enum
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from scrapegraphai.graphs import SmartScraperGraph
+
+load_dotenv()
+
+	
+# Define the output schema for the graph
+	
+
+class JobLinks(BaseModel):
+    link: str = Field(description="The link to the job")
+    
+class UpworkJobs(BaseModel):
+    jobs: List[JobLinks] = Field(description="The list of scraped jobs")
+
+class JobType(str, Enum):
+    FIXED = "Fixed"
+    HOURLY = "Hourly"
+
+
+class JobInformation(BaseModel):
+    id: str = Field(description="The unique job title href link")
+    title: str = Field(description="The title of the job")
+    date_time: str = Field(description="The Date and time the job was posted")
+    description: str = Field(description="The full description of the job")
+    job_type: JobType = Field(
+        description="The type of the job (Fixed or Hourly)"
+    )
+    experience_level: str = Field(description="The experience level of the job")
+    duration: str = Field(description="The duration of the job")
+    rate: Optional[str] = Field(
+        description="""
+        The payment rate for the job. Can be in several formats:
+        - Hourly rate range: '$15.00-$25.00' or '$15-$25'
+        - Fixed rate: '$500' or '$1,000'
+        - Budget range: '$500-$1,000'
+        All values should include the '$' symbol.
+        """
+    )
+    client_infomation: Optional[str] = Field(
+        description="The description of the client including location, number of hires, total spent, etc."
+    )
+
+
+class Jobs(BaseModel):
+    projects: List[JobInformation]
+
+
+
+jobpostcrud.py
+import logging
+import random
+import re
+from typing import Any, Dict, List, Optional
+from pydantic import ValidationError
+import streamlit as st
+from src.scraper.jobpostcrud import JobInformation, JobPostCRUD
+from src.scraper.smartscraper import Jobs
+from scrapegraphai.graphs import SmartScraperGraph
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+def preprocess_job_data(raw_jobs_data: List[dict]) -> List[dict]:
+    """
+    Preprocess raw job data by validating and normalizing the job fields.
+
+    Args:
+        raw_jobs_data (List[dict]): List of raw job data.
+
+    Returns:
+        List[dict]: List of processed job data.
+    """
+    processed_jobs = []
+    extract_job_id = lambda href: re.search(r'_~(\d+)', href).group(1) if re.search(r'_~(\d+)', href) else None
+
+    for job in raw_jobs_data.get("projects", []):
+        if isinstance(job, dict):
+            job_id = extract_job_id(job.get("id", ""))
+            if job_id:
+                job["id"] = job_id
+            else:
+                # Generate a random fallback ID if job_id is invalid
+                job["id"] = ''.join(str(random.randint(0, 9)) for _ in range(21))
+            
+            processed_jobs.append(job)
+        else:
+            logging.error(f"Unexpected job format: {job}")
+            continue
+
+    return processed_jobs
+
+
+def process_jobs(processed_jobs_data: Dict[str, Any]) -> None:
+    """
+    Process and validate jobs from raw data.
+    """
+    crud = JobPostCRUD()
+    for job in processed_jobs_data.get("projects", []):
+        logging.info(f"Processing job: {job}")
+        try:
+            # Preprocess the job data
+            preprocessed_data = preprocess_job_data(job)
+
+            # Custom validation of job data
+            validated_data = validate_job_data(preprocessed_data)
+
+            # Convert to Pydantic model for further validation and processing
+            job_info = JobInformation(validated_data)
+            
+            # Save the job to the database
+            result = crud.create_job(job_info.dict())
+            logging.info(f"Processed job: {job['title']}, Result: {result}")
+
+        except ValidationError as e:
+            logging.error(f"Validation error for job: {job['title']}, Error: {e.errors()}")
+        except ValueError as e:
+            logging.error(f"Custom validation error for job: {job['title']}, Error: {str(e)}")
+        except Exception as e:
+            logging.error(f"Unexpected error for job: {job['title']}, Error: {str(e)}")
+
+def validate_job_data(job):
+    required_keys = {'id', 'title', 'date_time', 'description', 'job_type', 
+                     'experience_level', 'duration', 'rate', 'client_infomation'}
+    if not isinstance(job, dict):
+        raise TypeError(f"Job entry must be a dictionary, got {type(job)}")
+    missing_keys = required_keys - job.keys()
+    if missing_keys:
+        raise ValueError(f"Missing keys in job entry: {missing_keys}")
+    return True
+
+def run_service():
+    logging.info("Started scraping Upwork data...")
+    
+    	
+    # Define the configuration for the graph
+    	
+    groq_api_key = st.secrets["general"]["GROQ_API_KEY"]
+
+    graph_config = {
+        "llm": {
+            "api_key": groq_api_key,
+            "model": "groq/llama-3.1-8b-instant",
+        },
+        "verbose": True,
+        "headless": False,
+    }
+
+    smart_scraper_graph = SmartScraperGraph(
+        prompt="List me all the jobs",
+        source="https://www.upwork.com/nx/search/jobs/?nbs=1&q=ai%20chatbot%20development&page=4&per_page=10",
+        schema=Jobs,
+        config=graph_config,
+    )
+
+    # Fetch and parse the data
+    jobs_data = smart_scraper_graph.run()
+    logging.info(f"Raw jobs data: {jobs_data}")
+
+    # Ensure jobs_data is structured as expected
+    if not isinstance(jobs_data, dict) or "projects" not in jobs_data:
+        logging.error("Unexpected jobs data structure. Expected a dictionary with 'projects' key.")
+        return
+
+    preprocessed_data = preprocess_job_data(jobs_data)
+    logging.info(f"Preprocessed jobs data: {preprocessed_data}")
+
+
+if __name__ == "__main__":
+    run_service()
+
+Code to analyse jobs criteria
+
+import os
+from typing import List
+from sqlalchemy import Column, Integer, String, Text, Boolean, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import ENUM as SQLAlchemyEnum
+from enum import Enum
+
+# You'll need to install the google-generativeai library
+# pip install google-generativeai
+
+import google.generativeai as genai
+
+# Define the JobType enum (assuming it's defined elsewhere in your project)
+class JobType(Enum):
+    HOURLY = "hourly"
+    FIXED = "fixed"
+
+# SQLAlchemy JobPost model (as provided)
+Base = declarative_base()
+
+class JobPost(Base):
+    __tablename__ = 'jobpost'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    job_type = Column(SQLAlchemyEnum(JobType), nullable=False)
+    experience_level = Column(String, nullable=False)
+    duration = Column(String, nullable=False)
+    rate = Column(String, nullable=True)
+    proposal_count = Column(Integer, default=0)
+    payment_verified = Column(Boolean, default=False)
+    country = Column(String, nullable=False)
+    ratings = Column(Float, nullable=True)
+    spent = Column(Float, nullable=True)
+    skills = Column(Text, nullable=True)
+    category = Column(String, nullable=False)
+
+def initialize_gemini_llm(api_key: str):
+    """Initializes the Gemini LLM with the provided API key."""
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-pro')
+    return model
+
+def analyze_job_with_gemini(model: genai.GenerativeModel, job: JobPost, criteria: dict) -> dict:
+    """
+    Analyzes a single job post using the Gemini LLM based on the provided criteria.
+
+    Args:
+        model: The initialized Gemini LLM model.
+        job: The JobPost object to analyze.
+        criteria: A dictionary of criteria to prioritize jobs.
+                  Example: {"crud operation": "high", "ai jobs": "medium", "automation": "high", "simplicity": "low"}
+
+    Returns:
+        A dictionary containing the analysis results and a priority score.
+    """
+    prompt_parts = [
+        f"Analyze the following Upwork job description and determine its relevance to these criteria: {criteria}\n\n",
+        f"Job Title: {job.title}\n",
+        f"Job Description: {job.description}\n\n",
+        "For each criterion, provide a relevance score (High, Medium, Low) and a brief explanation. ",
+        "Finally, based on the relevance scores, provide an overall priority score for this job (High, Medium, Low).",
+        "Respond in a structured format."
+    ]
+
+    try:
+        response = model.generate_content(prompt_parts)
+        response.resolve()  # Ensure the response is fully loaded
+        analysis_text = response.text
+
+        # --- Simple (and potentially unreliable) way to extract priority ---
+        # --- You might need more robust parsing based on Gemini's response format ---
+        if "Overall Priority: High" in analysis_text:
+            priority_score = 3
+        elif "Overall Priority: Medium" in analysis_text:
+            priority_score = 2
+        elif "Overall Priority: Low" in analysis_text:
+            priority_score = 1
+        else:
+            priority_score = 0
+
+        return {"analysis": analysis_text, "priority_score": priority_score}
+
+    except Exception as e:
+        print(f"Error analyzing job {job.id}: {e}")
+        return {"analysis": "Analysis failed.", "priority_score": 0}
+
+def prioritize_jobs(model: genai.GenerativeModel, jobs: List[JobPost], criteria: dict) -> List[tuple]:
+    """
+    Prioritizes a list of job posts based on the analysis from Gemini LLM.
+
+    Args:
+        model: The initialized Gemini LLM model.
+        jobs: A list of JobPost objects.
+        criteria: A dictionary of criteria to prioritize jobs.
+
+    Returns:
+        A list of tuples, where each tuple contains the JobPost object and its priority score,
+        sorted in descending order of priority.
+    """
+    prioritized_jobs =
+    for job in jobs:
+        analysis_result = analyze_job_with_gemini(model, job, criteria)
+        prioritized_jobs.append((job, analysis_result["priority_score"], analysis_result["analysis"]))
+
+    # Sort jobs by priority score in descending order
+    prioritized_jobs.sort(key=lambda item: item[1], reverse=True)
+    return prioritized_jobs
+
+def display_prioritized_jobs(prioritized_jobs: List[tuple]):
+    """Displays the prioritized list of jobs."""
+    print("\n--- Prioritized Upwork Jobs ---")
+    for job, score, analysis in prioritized_jobs:
+        print(f"\nJob ID: {job.id}")
+        print(f"Title: {job.title}")
+        print(f"Priority Score: {score}")
+        print(f"Gemini Analysis:\n{analysis}")
+        print("-" * 30)
+
+def main():
+    """Main function to run the job prioritization script."""
+    # 1. Configure your Gemini API key
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_api_key:
+        print("Error: Please set the GEMINI_API_KEY environment variable.")
+        return
+
+    # 2. Initialize the Gemini LLM
+    gemini_model = initialize_gemini_llm(gemini_api_key)
+
+    # 3. Define your prioritization criteria
+    # You can customize these weights based on your preferences
+    prioritization_criteria = {
+        "crud operation": "high",
+        "ai jobs": "medium",
+        "automation": "high",
+        "simplicity": "low"
+    }
+
+    # 4. Load your Upwork job data (replace this with your actual data loading logic)
+    # Example: Assuming you have a SQLAlchemy session 'session'
+    # jobs = session.query(JobPost).all()
+    # For demonstration purposes, let's create some sample JobPost objects
+    sample_jobs = [
+        JobPost(title="Build a CRUD API with Python and Flask", description="Need a developer to build a simple CRUD API for managing users. Experience with Flask and SQLAlchemy is required.", job_type=JobType.HOURLY, experience_level="Intermediate", duration="1-3 months", country="US", category="Web Development"),
+        JobPost(title="Develop an AI-powered Chatbot", description="Looking for an experienced AI/ML engineer to develop a chatbot using natural language processing techniques.", job_type=JobType.FIXED, experience_level="Expert", duration="3-6 months", country="CA", category="AI & Machine Learning"),
+        JobPost(title="Automate data entry tasks using Python", description="We need a script to automate the process of extracting data from spreadsheets and entering it into our database.", job_type=JobType.HOURLY, experience_level="Intermediate", duration="Less than 1 month", country="UK", category="Data Entry"),
+        JobPost(title="Simple website design update", description="Just need a few minor updates to the design of our existing website. Basic HTML and CSS knowledge is sufficient.", job_type=JobType.FIXED, experience_level="Entry", duration="Less than 1 week", country="AU", category="Web Design")
+    ]
+
+    # 5. Prioritize the jobs
+    prioritized_jobs_with_analysis = prioritize_jobs(gemini_model, sample_jobs, prioritization_criteria)
+
+    # 6. Display the prioritized jobs
+    display_prioritized_jobs(prioritized_jobs_with_analysis)
+
+if __name__ == "__main__":
+    main()
