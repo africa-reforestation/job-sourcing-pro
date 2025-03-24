@@ -111,23 +111,19 @@ class UpworkScraper:
                     config=config
                 )
                 
-                # Set the API key
-                logging.info("Setting API key on graph instance")
-                graph.api_key = self.api_key
-                
-                # Debug info on graph attributes
-                logging.info(f"Graph attributes: {dir(graph)}")
-                
-                # Configure LLM if it exists as a property
-                if hasattr(graph, 'llm'):
-                    logging.info("Setting LLM configuration for Groq")
-                    graph.llm = {
+                # Configure graph with LLM settings
+                logging.info("Configuring graph with LLM settings")
+                graph_config = {
+                    "llm": {
                         "provider": "groq",
                         "model": "llama3-70b-8192",
                         "api_key": self.api_key
                     }
-                else:
-                    logging.warning("Graph does not have 'llm' attribute - this may be expected depending on the library version")
+                }
+                graph.configure(graph_config)
+                
+                # Debug info
+                logging.info("Graph configured successfully")
                 
                 # Execute the scraper graph
                 logging.info("Executing scraper graph with Groq LLM...")
