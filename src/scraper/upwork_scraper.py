@@ -81,7 +81,11 @@ class UpworkScraper:
             config = self.get_scrape_config(keywords)
             
             # Initialize the SmartScraperGraph
-            graph = SmartScraperGraph(api_key=self.api_key)
+            # The SmartScraperGraph initialization doesn't use api_key parameter directly
+            graph = SmartScraperGraph()
+            
+            # Set the API key
+            graph.client.api_key = self.api_key
             
             # Execute the scraper graph
             logging.info("Executing scraper graph...")
