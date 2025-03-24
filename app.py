@@ -6,6 +6,8 @@ import streamlit as st
 import logging
 from src.database.crud import DatabaseHandler
 from src.ui.dashboard import render_dashboard
+from src.scraper.upwork_scraper import UpworkScraper
+from src.scheduler.job_scheduler import create_job_scraping_task
 
 # Configure logging
 logging.basicConfig(
@@ -13,11 +15,59 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+# Global variable to hold the scheduler task instance
+job_scraper_task = None
+
+def initialize_job_scraper():
+    """
+    Initialize the job scraper scheduler.
+    """
+    global job_scraper_task
+    
+    try:
+        # If task is already running, return its status
+        if job_scraper_task is not None and job_scraper_task.running:
+            return {
+                "status": "success", 
+                "message": "Job scraper already running", 
+                "task": job_scraper_task.get_status()
+            }
+        
+        # Initialize the scraper
+        scraper = UpworkScraper()
+        
+        # Create and start the periodic task (run every 60 minutes)
+        job_scraper_task = create_job_scraping_task(
+            scraper_func=scraper.run_job_scraping,
+            interval_minutes=60,  # Run every hour
+            run_on_start=True     # Run immediately when started
+        )
+        
+        # Start the task
+        job_scraper_task.start()
+        
+        return {
+            "status": "success",
+            "message": "Job scraper started successfully",
+            "task": job_scraper_task.get_status()
+        }
+        
+    except Exception as e:
+        logging.error(f"Failed to initialize job scraper: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 def main():
     """
     Main application entry point.
     """
     try:
+        # Start the job scraper scheduler
+        scraper_status = initialize_job_scraper()
+        if scraper_status["status"] == "error":
+            st.sidebar.error(f"Job scraper initialization failed: {scraper_status['message']}")
+        else:
+            st.sidebar.success(f"Job scraper active. Next run: {scraper_status['task']['next_run']}")
+        
         # Initialize database handler
         db_handler = DatabaseHandler()
         
